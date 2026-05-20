@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>옥텟 규칙을 만족하라! - 원소 결합 퍼즐 게임</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #38bdf8;
+            --text-color: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            color: #38bdf8;
+            margin-bottom: 5px;
+            font-size: 2rem;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+
+        /* 메인 결합 공간 */
+        #bonding-space {
+            width: 80%;
+            max-width: 700px;
+            height: 350px;
+            border: 3px dashed var(--border-color);
+            border-radius: 20px;
+            background: rgba(30, 41, 59, 0.5);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.1);
+            transition: all 0.3s;
+        }
+
+        #bonding-space.dragover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: #0ea5e9;
+        }
+
+        #bonding-space::before {
+            content: "이곳에 원소 카드를 드래그하여 결합하세요";
+            position: absolute;
+            color: #64748b;
+            font-size: 1.1rem;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #bonding-space:not(:empty)::before {
+            display: none;
+        }
+
+        /* 컨트롤 버튼 */
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn {
+            background-color: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:hover { background-color: #0284c7; }
+        .btn:active { transform: scale(0.98); }
+        .btn-reset { background-color: #ef4444; }
+        .btn-reset:hover { background-color: #dc2626; }
+
+        /* 하단 원소 덱 */
+        #element-deck {
+            width: 80%;
+            max-width: 700px;
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-around;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 원소 카드 스타일 및 전자가 배치될 위치 설정 */
+        .element-card {
+            width: 80px;
+            height: 80px;
+            background: #334155;
+            border: 2px solid #64748b;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.6rem;
+            font-weight: bold;
+            cursor: grab;
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            transition: transform 0.2s;
+        }
+
+        .element-card:active { cursor: grabbing; }
+        .element-card.in-space { cursor: pointer; animation: Float 3s ease-in-out infinite alternate; }
+
+        /* 원자가 전자 점(Dot) 스타일 */
+        .electron-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #f59e0b;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #f59e0b;
+        }
+
+        /* 전자 위치 배치 가이드 */
+        .dot-top { top: 6px; left: calc(50% - 4px); }
+        .dot-top2 { top: 6px; left: calc(50% + 4px); }
+        .dot-bottom { bottom: 6px; left: calc(50% - 4px); }
+        .dot-bottom2 { bottom: 6px; left: calc(50% + 4px); }
+        .dot-left { left: 6px; top: calc(50% - 4px); }
+        .dot-left2 { left: 6px; top: calc(50% + 4px); }
+        .dot-right { right: 6px; top: calc(50% - 4px); }
+        .dot-right2 { right: 6px; top: calc(50% + 4px); }
+
+        /* 성공 모달창 */
+        #result-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border: 3px solid #10b981;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 80%;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
+            animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-content h2 { color: #10b981; margin-top: 0; }
+        .modal-content p { line-height: 1.6; color: #cbd5e1; }
+        .modal-use { background: #0f172a; padding: 15px; border-radius: 10px; margin-top: 15px; text-align: left; }
+
+        @keyframes popUp {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes Float {
+            from { transform: translateY(0px); }
+            to { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>옥텟 규칙을 만족하라!</h1>
+        <p>원소 카드를 결합 공간에 끌어다 놓고 결합을 완성해 보세요.</p>
+    </header>
+
+    <div id="bonding-space"></div>
+
+    <div class="controls">
+        <button class="btn btn-reset" onclick="clearSpace()">전체 리셋</button>
+        <button class="btn" onclick="checkBonding()">결합 완료 및 판정</button>
+    </div>
+
+    <div id="element-deck">
+        <div class="element-card" draggable="true" data-type="H">H
+            <div class="electron-dot dot-top"></div>
+        </div>
+        <div class="element-card" draggable="true" data-type="O">O
+            <div class="electron-dot dot-top"></div><div class="electron-dot dot-top2"></div>
+            <div class="electron-dot dot-bottom"></div><div class="electron-dot dot-bottom2"></div>
+            <div class="electron-dot dot-left"></div><div class="electron-dot dot-right"></div>
+        </div>
+        <div class="element-card" draggable="true" data-type="Na">Na
+            <div class="electron-dot dot-top"></div>
+        </div>
+        <div class="element-card" draggable="true" data-type="Cl">Cl
+            <div class="electron-dot dot-top"></div><div class="electron-dot dot-top2"></div>
+            <div class="electron-dot dot-bottom"></div><div class="electron-dot dot-bottom2"></div>
+            <div class="electron-dot dot-left"></div><div class="electron-dot dot-left2"></div>
+            <div class="electron-dot dot-right"></div>
+        </div>
+    </div>
+
+    <div id="result-modal">
+        <div class="modal-content">
+            <h2 id="modal-title">성공!</h2>
+            <p id="modal-desc"></p>
+            <div class="modal-use">
+                <strong>💡 일상 속 쓰임새:</strong>
+                <p id="modal-usage" style="margin: 5px 0 0 0; font-size: 0.95rem;"></p>
+            </div>
+            <button class="btn" style="margin-top:20px;" onclick="closeModal()">확인</button>
+        </div>
+    </div>
+
+    <script>
+        const bondingSpace = document.getElementById('bonding-space');
+        const cards = document.querySelectorAll('#element-deck .element-card');
+        let draggedCardType = null;
+
+        // 드래그 시작 이벤트 처리 (덱에 있는 원본 카드 대상)
+        cards.forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                draggedCardType = card.getAttribute('data-type');
+            });
+        });
+
+        // 결합 공간 드래그 오버 및 드롭 레이아웃 효과
+        bondingSpace.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            bondingSpace.classList.add('dragover');
+        });
+
+        bondingSpace.addEventListener('dragleave', () => {
+            bondingSpace.classList.remove('dragover');
+        });
+
+        bondingSpace.addEventListener('drop', (e) => {
+            e.preventDefault();
+            bondingSpace.classList.remove('dragover');
+            
+            if (draggedCardType) {
+                createElementInSpace(draggedCardType);
+                draggedCardType = null;
+            }
+        });
+
+        // 결합 영역 내부에 새로운 카드 객체 생성 기능 (복제본 형태로 삽입)
+        function createElementInSpace(type) {
+            const originalCard = document.querySelector(`#element-deck .element-card[data-type="${type}"]`);
+            const clone = originalCard.cloneNode(true);
+            clone.removeAttribute('draggable');
+            clone.classList.add('in-space');
+            
+            // 결합 영역에 들어온 카드는 클릭 시 제거 가능하도록 설정
+            clone.addEventListener('click', () => {
+                clone.remove();
+            });
+
+            bondingSpace.appendChild(clone);
+            playOverlapAnimation();
+        }
+
+        // 원소가 들어왔을 때 전자가 겹쳐지거나 이동하는 듯한 느낌을 주는 미니 애니메이션 효과
+        function playOverlapAnimation() {
+            const addedCards = bondingSpace.querySelectorAll('.element-card');
+            addedCards.forEach(card => {
+                card.style.transform = 'scale(1.1)';
+                setTimeout(() => card.style.transform = '', 150);
+            });
+        }
+
+        // 결합판정 메인 비즈니스 로직
+        function checkBonding() {
+            const currentElements = bondingSpace.querySelectorAll('.element-card');
+            if (currentElements.length === 0) {
+                alert('결합 공간에 원소가 없습니다! 원소를 먼저 드래그해 주세요.');
+                return;
+            }
+
+            // 공간에 있는 원소 수 카운팅
+            const counts = { H: 0, O: 0, Na: 0, Cl: 0 };
+            currentElements.forEach(card => {
+                const type = card.getAttribute('data-type');
+                if (counts[type] !== undefined) counts[type]++;
+            });
+
+            // 경우의 수 판정 규칙 정의
+            if (counts.Na === 1 && counts.Cl === 1 && counts.H === 0 && counts.O === 0) {
+                showResult(
+                    "염화나트륨(NaCl) 형성 성공! [이온 결합]",
+                    "나트륨(Na)의 최외각 전자 1개가 염소(Cl)로 완전히 이동하면서, 양이온과 음이온 간의 강한 정전기적 인력으로 결합이 이루어졌습니다. 두 원소 모두 최외각 8전자를 만족하게 됩니다.",
+                    "우리가 매일 먹는 소금의 주성분입니다. 음식의 간을 맞추거나 식품을 장기 보존할 때 방부제로 사용되며, 체내 신호 전달 및 수분 균형 유지에 핵심적인 역할을 합니다."
+                );
+            } else if (counts.H === 2 && counts.O === 1 && counts.Na === 0 && counts.Cl === 0) {
+                showResult(
+                    "물(H₂O) 형성 성공! [공유 결합]",
+                    "산소(O) 원자 1개가 2개의 수소(H) 원자들과 전자를 각각 쌍으로 공유하며 결합을 이루었습니다. 결과적으로 산소는 최외각 8전자(옥텟 규칙)를 만족하고 수소는 2전자를 채워 모두 안정해집니다.",
+                    "지구 표면의 약 70%를 덮고 있으며 모든 생명체가 생명을 유지하는 데 절대적으로 필요한 물질입니다. 뛰어난 용매 특성을 가지고 있어 다양한 물질을 녹여 순환시킵니다."
+                );
+            } else {
+                // 규칙을 만족하지 못할 경우 경고 창
+                alert("❌ 옥텟 규칙을 만족하지 못했거나 올바르지 않은 화합물 구조입니다. 원소의 개수와 최외각 전자 수를 고려하여 다시 결합해 보세요!");
+            }
+        }
+
+        // 판정 결과 창 띄우기
+        function showResult(title, desc, usage) {
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal-usage').innerText = usage;
+            document.getElementById('result-modal').style.display = 'flex';
+        }
+
+        // 모달 닫기 및 공간 비우기
+        function closeModal() {
+            document.getElementById('result-modal').style.display = 'none';
+            clearSpace();
+        }
+
+        // 리셋 기능
+        function clearSpace() {
+            bondingSpace.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
